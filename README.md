@@ -16,8 +16,18 @@ FocusDesk AI is a desktop widget built with React, Vite, and Electron designed t
    npm install
    ```
 
-2. **Add Credentials:**
-   Place your Google Calendar API `credentials.json` in the root of the project. (This file is ignored by git for security).
+2. **Setup Google Calendar API (Required for Schedule Integration):**
+   To allow the app to fetch your schedule, you need to provide it with a Google Calendar API credential file.
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/).
+   - Create a new project or select an existing one.
+   - Go to **APIs & Services > Library**, search for **Google Calendar API**, and click **Enable**.
+   - Go to **APIs & Services > Credentials**.
+   - Click **Create Credentials > OAuth client ID**.
+   - Select **Desktop app** (or TV/Limited Input) as the application type, and click Create.
+   - Click **Download JSON** on the resulting pop-up.
+   - Rename the downloaded file to exactly `credentials.json`.
+   - Place `credentials.json` directly into the `electron/` folder of this project (e.g., `A:\Desktop_Ai\FocusDesk-AI\electron\credentials.json` or `electron/client_secret_*.json`).
+   - *(Note: The `.gitignore` is configured to ignore these files, keeping your credentials secure.)*
 
 3. **Start Development Server:**
    ```bash
