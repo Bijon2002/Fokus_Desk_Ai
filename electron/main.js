@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -96,6 +96,19 @@ app.whenReady().then(() => {
   ipcMain.handle('unpin-widgets', () => {
     if (cpuWindow) { cpuWindow.close(); cpuWindow = null; }
     if (memWindow) { memWindow.close(); memWindow = null; }
+  });
+
+  ipcMain.handle('open-external', (_, url) => {
+    if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+      shell.openExternal(url);
+    }
+  });
+
+  ipcMain.handle('set-opacity', (_, opacity) => {
+    if (mainWindow && typeof opacity === 'number') {
+      const clamped = Math.max(0.3, Math.min(1.0, opacity));
+      mainWindow.setOpacity(clamped);
+    }
   });
 
   // Auto-start on login (only when packaged)

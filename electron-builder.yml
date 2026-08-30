@@ -7,9 +7,10 @@ files:
   - dist/**/*
   - electron/**/*
   - database/**/*
-  - node_modules/**/*
   - package.json
 asar: true
+asarUnpack:
+  - "**/*.node"
 win:
   target:
     - target: nsis
@@ -21,5 +22,4 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: false
   deleteAppDataOnUninstall: false
-
 npmRebuild: false

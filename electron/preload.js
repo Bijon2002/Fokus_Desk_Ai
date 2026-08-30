@@ -11,6 +11,17 @@ contextBridge.exposeInMainWorld('api', {
   saveNote: (content) => ipcRenderer.invoke('db-save-note', content),
   // Calendar
   getCalendarEvents: () => ipcRenderer.invoke('calendar-get-events'),
+  reconnectCalendar: () => ipcRenderer.invoke('calendar-reauth'),
   // System
   getSystemInfo: () => ipcRenderer.invoke('system-get-info'),
+  // Window & Shell controls
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  pinWidgets: () => ipcRenderer.invoke('pin-widgets'),
+  unpinWidgets: () => ipcRenderer.invoke('unpin-widgets'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  setOpacity: (opacity) => ipcRenderer.invoke('set-opacity', opacity),
+  // Settings
+  getSettings: () => ipcRenderer.invoke('db-get-settings'),
+  saveSetting: (key, value) => ipcRenderer.invoke('db-save-setting', key, value),
 });

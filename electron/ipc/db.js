@@ -84,4 +84,23 @@ export function setupDB() {
     }
     return true;
   });
+
+  ipcMain.handle('db-get-settings', () => {
+    const rows = db.prepare('SELECT key, value FROM settings').all();
+    const settings = {};
+    for (const r of rows) {
+      try {
+        settings[r.key] = JSON.parse(r.value);
+      } catch {
+        settings[r.key] = r.value;
+      }
+    }
+    return settings;
+  });
+
+  ipcMain.handle('db-save-setting', (_, key, value) => {
+    const valStr = typeof value === 'string' ? value : JSON.stringify(value);
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, valStr);
+    return true;
+  });
 }
