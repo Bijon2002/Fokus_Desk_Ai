@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('api', {
   // Calendar
   getCalendarEvents: () => ipcRenderer.invoke('calendar-get-events'),
   reconnectCalendar: () => ipcRenderer.invoke('calendar-reauth'),
+  // Mailbox
+  getMailbox: () => ipcRenderer.invoke('mail-get-messages'),
+  reconnectMailbox: () => ipcRenderer.invoke('mail-reauth'),
   // System
   getSystemInfo: () => ipcRenderer.invoke('system-get-info'),
   // Window & Shell controls
@@ -24,4 +27,6 @@ contextBridge.exposeInMainWorld('api', {
   // Settings
   getSettings: () => ipcRenderer.invoke('db-get-settings'),
   saveSetting: (key, value) => ipcRenderer.invoke('db-save-setting', key, value),
+  // Voice Synthesis
+  generateCharacterSpeech: (text, themeKey) => ipcRenderer.invoke('voice-generate-speech', text, themeKey),
 });

@@ -5,7 +5,9 @@ import { fileURLToPath } from 'url';
 import { setupMonitor } from './monitor.js';
 import { setupDB } from './ipc/db.js';
 import { setupCalendar } from './ipc/calendar.js';
+import { setupMail } from './ipc/mail.js';
 import { setupSystem } from './ipc/system.js';
+import { setupVoice } from './ipc/voice.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +80,9 @@ app.whenReady().then(() => {
   setupMonitor(mainWindow);
   setupDB();
   setupCalendar();
+  setupMail();
   setupSystem();
+  setupVoice();
 
   ipcMain.handle('window-close', () => {
     mainWindow.hide();

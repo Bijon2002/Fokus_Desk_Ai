@@ -1,224 +1,70 @@
-import { app, ipcMain, shell, safeStorage } from 'electron';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import http from 'http';
+import { ipcMain } from 'electron';
+import { authenticate, getSilentToken, refreshAccessToken, deleteSavedToken, loadCredentials } from './googleAuth.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function getDemoCalendarEvents() {
+  const now = new Date();
+  const today1 = new Date(now);
+  today1.setHours(10, 0, 0, 0);
 
-const TOKEN_PATH = path.join(app.getPath('userData'), 'token.enc');
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+  const today2 = new Date(now);
+  today2.setHours(14, 30, 0, 0);
 
-let credentials = null;
-let tokenData = null;
-let authInProgress = false;
+  const today3 = new Date(now);
+  today3.setHours(17, 0, 0, 0);
 
-function findCredentialsPath() {
-  const electronDir = path.join(__dirname, '..');
-  const defaultCreds = path.join(electronDir, 'credentials.json');
-  if (fs.existsSync(defaultCreds)) return defaultCreds;
+  const tomorrow = new Date(now.getTime() + 24 * 3600 * 1000);
+  tomorrow.setHours(11, 0, 0, 0);
 
-  const files = fs.readdirSync(electronDir);
-  const secretFile = files.find(f => f.startsWith('client_secret_') && f.endsWith('.json'));
-  if (secretFile) return path.join(electronDir, secretFile);
-
-  return defaultCreds;
-}
-
-function loadCredentials() {
-  const credPath = findCredentialsPath();
-  if (fs.existsSync(credPath)) {
-    try {
-      const content = fs.readFileSync(credPath, 'utf8');
-      const parsed = JSON.parse(content);
-      credentials = parsed.installed || parsed.web;
-      console.log('[Calendar] Credentials loaded from:', credPath);
-      return true;
-    } catch (e) {
-      console.error('[Calendar] Error parsing credentials file:', e.message);
-      return false;
+  return [
+    {
+      id: 'demo-cal-1',
+      title: 'Tactical HUD & Interface Calibration',
+      time: '10:00 AM',
+      rawStart: today1.toISOString(),
+      description: 'Review HUD telemetry, hero themes, audio cues, and widget response times.',
+      location: 'HQ Conference Room A',
+      htmlLink: 'https://calendar.google.com',
+      meetingUrl: 'https://meet.google.com/abc-defg-hij',
+      meetingType: 'Google Meet',
+      isDemo: true,
+    },
+    {
+      id: 'demo-cal-2',
+      title: 'Stark Tech Architecture Sync',
+      time: '02:30 PM',
+      rawStart: today2.toISOString(),
+      description: 'Deep dive into Arc Reactor power management algorithms and cognitive capacity models.',
+      location: 'Stark Tower Lab 4',
+      htmlLink: 'https://calendar.google.com',
+      meetingUrl: 'https://meet.google.com/xyz-uvwx-rst',
+      meetingType: 'Google Meet',
+      isDemo: true,
+    },
+    {
+      id: 'demo-cal-3',
+      title: 'Daily Wrap-up & Priorities Review',
+      time: '05:00 PM',
+      rawStart: today3.toISOString(),
+      description: 'Consolidate completed focus tasks and align on upcoming development milestones.',
+      location: 'Virtual',
+      htmlLink: 'https://calendar.google.com',
+      meetingUrl: null,
+      meetingType: null,
+      isDemo: true,
+    },
+    {
+      id: 'demo-cal-4',
+      title: 'Sprint Planning & Release Checklist',
+      time: '11:00 AM',
+      rawStart: tomorrow.toISOString(),
+      description: 'Sprint planning for next release cycle and production build signoff.',
+      location: 'Virtual',
+      htmlLink: 'https://calendar.google.com',
+      meetingUrl: 'https://zoom.us/j/123456789',
+      meetingType: 'Zoom',
+      isDemo: true,
     }
-  }
-  console.error('[Calendar] Credentials not found in electron directory');
-  return false;
-}
-
-function deleteSavedToken() {
-  tokenData = null;
-  if (fs.existsSync(TOKEN_PATH)) {
-    try {
-      fs.unlinkSync(TOKEN_PATH);
-      console.log('[Calendar] Expired/invalid token removed');
-    } catch (e) {
-      console.error('[Calendar] Error deleting token file:', e.message);
-    }
-  }
-}
-
-function saveToken(token) {
-  try {
-    const tokenStr = JSON.stringify(token);
-    if (safeStorage.isEncryptionAvailable()) {
-      fs.writeFileSync(TOKEN_PATH, safeStorage.encryptString(tokenStr));
-    } else {
-      fs.writeFileSync(TOKEN_PATH, tokenStr);
-    }
-    console.log('[Calendar] Token saved');
-  } catch (e) {
-    console.error('[Calendar] Save token error:', e.message);
-  }
-}
-
-function loadToken() {
-  if (fs.existsSync(TOKEN_PATH)) {
-    try {
-      const raw = fs.readFileSync(TOKEN_PATH);
-      const decrypted = safeStorage.isEncryptionAvailable()
-        ? safeStorage.decryptString(raw)
-        : raw.toString('utf8');
-      return JSON.parse(decrypted);
-    } catch (e) {
-      console.error('[Calendar] Corrupt token, deleting');
-      deleteSavedToken();
-      return null;
-    }
-  }
-  return null;
-}
-
-async function refreshAccessToken(token) {
-  const params = new URLSearchParams({
-    client_id: credentials.client_id,
-    client_secret: credentials.client_secret,
-    refresh_token: token.refresh_token,
-    grant_type: 'refresh_token',
-  });
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error('[Calendar] Token refresh failed HTTP', res.status, errBody);
-    throw new Error('Token refresh failed: ' + res.status);
-  }
-
-  const newToken = await res.json();
-  tokenData = { 
-    ...token, 
-    ...newToken, 
-    expiry_date: Date.now() + ((newToken.expires_in || 3600) * 1000) 
-  };
-  saveToken(tokenData);
-  return tokenData;
-}
-
-function authenticate(forceNew = false) {
-  return new Promise((resolve, reject) => {
-    if (!credentials) {
-      if (!loadCredentials()) {
-        return reject(new Error('No Google credentials found in electron directory'));
-      }
-    }
-
-    if (!forceNew) {
-      const saved = tokenData || loadToken();
-      if (saved) {
-        tokenData = saved;
-        // Check if expired or about to expire in 60s
-        if (saved.expiry_date && Date.now() > saved.expiry_date - 60000) {
-          if (saved.refresh_token) {
-            return refreshAccessToken(saved)
-              .then(resolve)
-              .catch(err => {
-                console.warn('[Calendar] Refresh failed (likely expired/revoked grant). Clearing token and triggering re-auth...', err.message);
-                deleteSavedToken();
-                // Trigger browser re-auth flow
-                authenticate(true).then(resolve).catch(reject);
-              });
-          }
-        } else {
-          return resolve(saved);
-        }
-      }
-    }
-
-    if (authInProgress) {
-      return reject(new Error('Auth already in progress — please complete it in your browser'));
-    }
-    authInProgress = true;
-
-    const server = http.createServer(async (req, res) => {
-      try {
-        if (req.url && req.url.includes('code=')) {
-          const port = server.address().port;
-          const url = new URL(req.url, `http://localhost:${port}`);
-          const code = url.searchParams.get('code');
-
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end('<html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0f172a;color:#ffffff"><h2 style="color:#38bdf8">✓ Google Calendar Connected!</h2><p>You can close this tab and return to FocusDesk.</p></body></html>');
-          server.close();
-          authInProgress = false;
-
-          // Exchange code for tokens
-          const params = new URLSearchParams({
-            code,
-            client_id: credentials.client_id,
-            client_secret: credentials.client_secret,
-            redirect_uri: `http://localhost:${port}`,
-            grant_type: 'authorization_code',
-          });
-
-          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString(),
-          });
-
-          if (!tokenRes.ok) {
-            const errData = await tokenRes.text();
-            throw new Error('Token exchange failed: ' + errData);
-          }
-
-          tokenData = await tokenRes.json();
-          tokenData.expiry_date = Date.now() + ((tokenData.expires_in || 3600) * 1000);
-          saveToken(tokenData);
-          console.log('[Calendar] OAuth completed successfully');
-          resolve(tokenData);
-        }
-      } catch (err) {
-        console.error('[Calendar] OAuth callback error:', err.message);
-        res.writeHead(500);
-        res.end('Authentication failed. Please try again.');
-        server.close();
-        authInProgress = false;
-        reject(err);
-      }
-    });
-
-    server.on('error', (err) => {
-      authInProgress = false;
-      reject(err);
-    });
-
-    server.listen(0, () => {
-      const port = server.address().port;
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${encodeURIComponent(credentials.client_id)}` +
-        `&redirect_uri=${encodeURIComponent(`http://localhost:${port}`)}` +
-        `&response_type=code` +
-        `&scope=${encodeURIComponent(SCOPES.join(' '))}` +
-        `&access_type=offline` +
-        `&prompt=consent`;
-
-      console.log('[Calendar] Opening browser for Google OAuth on port', port);
-      shell.openExternal(authUrl);
-    });
-  });
+  ];
 }
 
 export function setupCalendar() {
@@ -226,7 +72,14 @@ export function setupCalendar() {
 
   ipcMain.handle('calendar-get-events', async () => {
     try {
-      const token = await authenticate();
+      const token = await getSilentToken();
+      if (!token) {
+        return {
+          connected: false,
+          events: getDemoCalendarEvents(),
+          message: 'Showing demo calendar events. Connect Google Account to sync live events.'
+        };
+      }
       
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -239,7 +92,7 @@ export function setupCalendar() {
       );
 
       if (res.status === 401) {
-        console.log('[Calendar] 401 received from Google Calendar API. Attempting refresh or re-auth...');
+        console.log('[Calendar] 401 received from Google Calendar API. Attempting refresh...');
         if (token.refresh_token) {
           try {
             const refreshed = await refreshAccessToken(token);
@@ -250,26 +103,30 @@ export function setupCalendar() {
               { headers: { Authorization: `Bearer ${refreshed.access_token}` } }
             );
             const data = await retry.json();
-            return formatEvents(data.items || []);
+            return { connected: true, events: formatEvents(data.items || []) };
           } catch (e) {
             deleteSavedToken();
+            return { connected: false, events: getDemoCalendarEvents() };
           }
         } else {
           deleteSavedToken();
+          return { connected: false, events: getDemoCalendarEvents() };
         }
       }
 
       const data = await res.json();
       if (data.items) {
         console.log(`[Calendar] Fetched ${data.items.length} events`);
-        return formatEvents(data.items);
+        return { connected: true, events: formatEvents(data.items) };
       } else {
         console.warn('[Calendar] Google API response:', data);
-        return [];
+        return { connected: false, events: getDemoCalendarEvents() };
       }
     } catch (err) {
-      console.error('[Calendar] Error fetching events:', err.message);
-      return [];
+      if (!err.message.includes('already in progress') && !err.message.includes('timed out')) {
+        console.error('[Calendar] Error fetching events:', err.message);
+      }
+      return { connected: false, events: getDemoCalendarEvents() };
     }
   });
 
@@ -337,4 +194,3 @@ function formatEvents(items) {
     };
   });
 }
-
